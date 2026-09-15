@@ -21,6 +21,6 @@ export const gallery: GalleryPhoto[] = [
   // Example entries — replace with your real team photos:
    { filename: "Cybersphere.jpg", caption: "Cybersphere Advanced CTF 2026" },
    { filename: "cybercamp1.jpg", caption: "CyberCamp Android RE 2025" },
-   { filename: "scoreboard.jpg", caption: "Cybersphere Advanced CTF 2026 Scoreboard" },
+   { filename: "Scoreboard.jpg", caption: "Cybersphere Advanced CTF 2026 Scoreboard" },
    { filename: "finals.jpg", caption: "Securinets International Finals 2025" },
 ];
