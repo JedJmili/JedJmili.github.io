@@ -58,10 +58,12 @@ const DEFAULT_OUTPUT: Line[] = [
 export function Terminal() {
   const [history, setHistory] = useState<Line[]>(DEFAULT_OUTPUT);
   const [input, setInput] = useState("");
-  const endRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "nearest" });
+     if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [history]);
 
   const run = (raw: string) => {
@@ -105,6 +107,7 @@ export function Terminal() {
           </div>
 
           <div
+            ref={containerRef}
             className="max-h-80 overflow-y-auto p-4 font-mono text-sm"
             role="log"
             aria-label="Interactive terminal output"
@@ -135,7 +138,6 @@ export function Terminal() {
                 setInput("");
               }}
             />
-            <div ref={endRef} />
           </div>
         </div>
         <p className="mt-3 text-center font-mono text-xs text-textMuted">
