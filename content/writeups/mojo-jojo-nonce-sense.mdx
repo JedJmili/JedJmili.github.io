@@ -1,0 +1,387 @@
+---
+title: "MOJO-JOJO CTF — Crypto: NONCE SENSE"
+excerpt: "A walkthrough of the NONCE SENSE crypto challenge from the MOJO-JOJO CTF — a signing oracle that needs no real ECDSA forgery."
+date: "2025-07-20"
+category: "Cryptography"
+tags: ["crypto", "ecdsa", "ctf", "mojojojo"]
+readingTime: "10 min"
+cover: ""
+draft: false
+---
+
+## Challenge Overview
+
+**Category:** Cryptography
+**Difficulty:** Easy / Medium
+
+> *I sign messages with ECDSA (secp256k1) and leak R = k·G. Can you forge a signature for `Give me the flag!`?*
+
+The challenge presents an ECDSA signing server using the **secp256k1** elliptic curve.
+
+Players can:
+
+1. Request a signature for an arbitrary message.
+2. Submit an `(r, s)` signature to obtain the flag.
+3. Retrieve the server's public key.
+4. Exit the challenge.
+
+The server also reveals the complete nonce point `R = kG` for every signature and limits players to 200 signing requests.
+
+At first glance, this looks like a classic **ECDSA nonce vulnerability**. However, the intended solution is considerably simpler.
+
+---
+
+## Understanding the Challenge
+
+ECDSA signatures consist of two values:
+
+```text
+(r, s)
+```
+
+For a private key `d`, message hash `z`, and nonce `k`:
+
+```text
+R = kG
+
+r = R.x mod n
+
+s = k⁻¹(z + r·d) mod n
+```
+
+where `G` is the curve generator and `n` is the order of the curve.
+
+The interesting part of the challenge is that the server explicitly tells us that it leaks:
+
+```text
+R = kG
+```
+
+This immediately suggests that the nonce `k` might somehow be recoverable.
+
+However, recovering `k` from `R = kG` requires solving the **elliptic-curve discrete logarithm problem**, which is computationally infeasible for secp256k1.
+
+So the real question becomes:
+
+> **Is the nonce actually vulnerable, or is the challenge trying to make us look in the wrong direction?**
+
+---
+
+## First Approach — Nonce Reuse
+
+The first thing to check in an ECDSA challenge involving nonces is whether the same nonce is reused.
+
+If two different messages are signed with the same `k`, we obtain:
+
+```text
+s₁ = k⁻¹(z₁ + r·d) mod n
+s₂ = k⁻¹(z₂ + r·d) mod n
+```
+
+which allows us to recover the nonce:
+
+```text
+k = (z₁ - z₂) / (s₁ - s₂) mod n
+```
+
+and subsequently the private key:
+
+```text
+d = (s·k - z) / r mod n
+```
+
+I therefore collected a large number of signatures and compared their `r` values.
+
+All signatures had different `r` values.
+
+```text
+Signature 1 → r₁
+Signature 2 → r₂
+Signature 3 → r₃
+...
+```
+
+No nonce reuse was observed.
+
+**Dead end.**
+
+---
+
+## Second Approach — Predictable Nonces
+
+The challenge name **"NONCE SENSE"** strongly suggests that nonce generation might be the intended attack surface.
+
+I therefore considered several possibilities:
+
+* Constant nonce
+* Message-derived nonce
+* Simple sequential values
+* Predictable random generation
+* Weak PRNG behavior
+
+None of these patterns matched the observed signatures.
+
+The nonce generation appeared to behave correctly.
+
+---
+
+## Third Approach — Recovering `k` from `R`
+
+The server gives us the complete point:
+
+```text
+R = (R.x, R.y)
+```
+
+rather than only the usual `r` value.
+
+Could we simply calculate `k` from this?
+
+Unfortunately, this would require solving:
+
+```text
+R = kG
+```
+
+for `k`.
+
+That's the elliptic-curve discrete logarithm problem.
+
+For secp256k1, this is not realistically feasible with ordinary computational resources.
+
+So the leaked `R` is a distraction rather than the actual weakness.
+
+---
+
+# The Breakthrough
+
+At this point, it was worth going back to the most basic question:
+
+> **What exactly can we ask the signing server to sign?**
+
+The answer is:
+
+**Anything.**
+
+The server doesn't restrict the message we provide.
+
+And the target message is:
+
+```text
+Give me the flag!
+```
+
+So why try to forge a signature for a message that the server is already willing to sign?
+
+I simply requested a signature for the exact target message.
+
+The server returned:
+
+```text
+r = 0xb186388295fc648085e2da25d82ff4373fdd4fcd7ca755e2a0fc861f52229094
+
+s = 0x285b9ca813001c1d1c26a8bc288e1ac69dcc2547a24f1999c0bf3ecc2490cf6e
+```
+
+Submitting those exact values as the signature immediately worked.
+
+---
+
+# Why Does This Work?
+
+The important observation is that the server acts as a **signing oracle**.
+
+The intended sequence is simply:
+
+```text
+Attacker
+   │
+   │ "Give me the flag!"
+   ▼
+Signing Oracle
+   │
+   │ valid ECDSA signature
+   ▼
+Attacker
+   │
+   │ submit (r, s)
+   ▼
+Flag
+```
+
+The challenge describes the goal as **forging a signature**, but no cryptographic forgery is actually necessary.
+
+We are allowed to obtain a legitimate signature for the exact message that the verifier expects.
+
+The deterministic behavior observed when requesting the same message multiple times is consistent with **deterministic ECDSA**, such as RFC 6979. This is not itself a vulnerability. In fact, deterministic ECDSA is specifically designed to avoid problems caused by poor randomness in nonce generation.
+
+The actual weakness is the **protocol logic**: the signing oracle allows arbitrary messages, including the message that must later be submitted to the verifier.
+
+---
+
+# Exploitation
+
+The attack can therefore be reduced to two steps.
+
+### Step 1 — Request a signature
+
+Select option `1` and provide:
+
+```text
+Give me the flag!
+```
+
+The server returns the corresponding `r` and `s`.
+
+### Step 2 — Submit the signature
+
+Select option `2` and provide the same `r` and `s`.
+
+The server accepts the valid signature and returns the flag.
+
+---
+
+## Exploit Script
+
+```python
+#!/usr/bin/env python3
+
+import socket
+import time
+import re
+
+HOST = "20.199.19.9"
+PORT = 1945
+
+# "Give me the flag!" in hexadecimal
+msg_hex = "47697665206d652074686520666c616721"
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.connect((HOST, PORT))
+sock.settimeout(10)
+
+
+def recv_all(timeout=1):
+    sock.settimeout(timeout)
+    data = b''
+
+    try:
+        while True:
+            chunk = sock.recv(4096)
+
+            if not chunk:
+                break
+
+            data += chunk
+
+    except socket.timeout:
+        pass
+
+    return data.decode(errors="ignore")
+
+
+# Receive banner
+recv_all(2)
+
+# Request a signature
+print("[*] Requesting signature for target message...")
+
+sock.send(b"1\n")
+time.sleep(0.1)
+recv_all(0.5)
+
+sock.send(msg_hex.encode() + b"\n")
+time.sleep(0.1)
+
+response = recv_all(1)
+
+# Extract r and s
+match_r = re.search(r'r = (0x[0-9a-f]+)', response)
+match_s = re.search(r's = (0x[0-9a-f]+)', response)
+
+r = match_r.group(1)
+s = match_s.group(1)
+
+print(f"[+] r = {r}")
+print(f"[+] s = {s}")
+
+# Submit signature
+print("[*] Submitting signature...")
+
+sock.send(b"2\n")
+time.sleep(0.1)
+recv_all(0.5)
+
+sock.send(r.encode() + b"\n")
+time.sleep(0.1)
+recv_all(0.5)
+
+sock.send(s.encode() + b"\n")
+time.sleep(0.1)
+
+result = recv_all(2)
+
+print(result)
+
+sock.close()
+```
+
+---
+
+## Execution
+
+Running the exploit gives:
+
+```text
+$ python3 exploit.py
+
+[*] Requesting signature for target message...
+[+] r = 0xb186388295fc648085e2da25d82ff4373fdd4fcd7ca755e2a0fc861f52229094
+[+] s = 0x285b9ca813001c1d1c26a8bc288e1ac69dcc2547a24f1999c0bf3ecc2490cf6e
+
+[*] Submitting signature...
+
+[SUCCESS] Flag: MOJO-JOJO{WH0_3V3R_L0V35_3CD5A_BR00}
+```
+
+---
+
+# Flag
+
+```text
+MOJO-JOJO{WH0_3V3R_L0V35_3CD5A_BR00}
+```
+
+---
+
+# Takeaways
+
+### 1. Don't overcomplicate crypto challenges
+
+The challenge intentionally gives several clues pointing toward nonce attacks. It is easy to immediately start looking for ECDSA weaknesses.
+
+Sometimes the simplest question is the most important:
+
+> **What can the server actually do for me?**
+
+### 2. A signing oracle can be dangerous
+
+If an application allows an attacker to obtain valid signatures for arbitrary messages, the attacker may be able to abuse those signatures directly.
+
+The security of the signature algorithm itself doesn't compensate for a broken protocol.
+
+### 3. Deterministic ECDSA isn't the vulnerability
+
+The repeated `(r, s)` values for the same message indicate deterministic signing behavior.
+
+This does **not** mean ECDSA has been broken. Deterministic nonce generation is a legitimate and widely used approach.
+
+The problem is that the server lets us request a signature for the exact message we later need to authenticate.
+
+### 4. Follow the protocol, not just the cryptography
+
+The challenge looks like it requires breaking ECDSA.
+
+It doesn't.
+
+The cryptography works exactly as intended — **the protocol around it doesn't.**

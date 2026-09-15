@@ -1,0 +1,43 @@
+---
+title: "MOJO-JOJO CTF — OSINT Walkthrough"
+excerpt: "A walkthrough of the MOJO-JOJO CTF osint challenges."
+date: "2025-08-15"
+category: "OSINT"
+tags: ["ctf", "mojojojo", "osint"]
+readingTime: "5 min"
+cover: ""
+draft: false
+externalUrl: "https://medium.com/@0xT4D/writeup-for-osint-tasks-mojo-jojo-ctf-508b5f892012"
+---
+
+> This writeup is published externally on Medium.
+
+
+> A walkthrough covering the MOJO-JOJO CTF challenges, breaking down the intended path
+> from enumeration to exploitation.
+
+## The Challenge
+
+MOJO-JOJO is a set of CTF challenges I authored, spanning web exploitation, reverse
+engineering and cryptography. The goal is to walk through the intended solve path and
+highlight the techniques involved.
+
+## Recon
+
+Start by mapping out the target — port scanning, directory brute forcing, and reviewing
+the exposed attack surface to identify the weakest entry point.
+
+## Exploitation
+
+```python
+# example solve code
+import requests
+
+r = requests.get("http://target/flag")
+print(r.text)
+```
+
+## Lessons learned
+
+Think about the design decisions behind a challenge — what makes it solvable, where the
+rabbit holes are, and how to approach it methodically.
