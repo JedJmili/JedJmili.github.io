@@ -1,5 +1,19 @@
 import type { MDXComponents } from "mdx/types";
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { slugify } from "@/lib/toc";
+
+/** Flatten a heading's React children down to plain text so we can derive the
+ *  same anchor id that lib/toc produces for the table of contents. */
+function nodeText(node: ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return nodeText((node as { props?: { children?: ReactNode } }).props?.children);
+  }
+  return "";
+}
 
 export const mdxComponents: MDXComponents = {
   h1: (props) => (
@@ -8,14 +22,23 @@ export const mdxComponents: MDXComponents = {
       {...props}
     />
   ),
-  h2: (props) => (
+  h2: ({ children, ...props }) => (
     <h2
-      className="mt-10 mb-4 border-b border-border pb-2 text-xl font-bold text-textPrimary"
+      id={slugify(nodeText(children))}
+      className="mt-10 mb-4 scroll-mt-28 border-b border-border pb-2 text-xl font-bold text-textPrimary"
       {...props}
-    />
+    >
+      {children}
+    </h2>
   ),
-  h3: (props) => (
-    <h3 className="mt-8 mb-3 text-lg font-semibold text-textPrimary" {...props} />
+  h3: ({ children, ...props }) => (
+    <h3
+      id={slugify(nodeText(children))}
+      className="mt-8 mb-3 scroll-mt-28 text-lg font-semibold text-textPrimary"
+      {...props}
+    >
+      {children}
+    </h3>
   ),
   p: (props) => (
     <p className="my-4 text-base leading-relaxed text-textSecondary" {...props} />
@@ -90,7 +113,7 @@ export const mdxComponents: MDXComponents = {
   img: (props) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className="my-6 w-full rounded-lg border border-border"
+      className="mx-auto my-6 block max-h-[520px] w-auto max-w-full rounded-lg border border-border bg-background"
       loading="lazy"
       alt=""
       {...props}

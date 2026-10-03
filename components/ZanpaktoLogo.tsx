@@ -6,9 +6,9 @@ export function ZanpaktoLogo({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/bleach.jpg"
-      alt="Bleach logo"
-      className={`${className} rounded-full object-cover ring-1 ring-accent/40`}
+      src="/images/bleach/bleach-skull.jpg"
+      alt="Bleach skull logo"
+      className={`${className} rounded-full bg-white object-contain p-0.5 ring-1 ring-accent/50`}
     />
   );
 }

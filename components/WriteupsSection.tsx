@@ -1,11 +1,11 @@
-import { getAllWriteups } from "@/lib/writeups";
+import { getWriteupsByEvent } from "@/lib/writeups";
 import { Container } from "./Container";
 import { SectionHeading } from "./SectionHeading";
 import { Reveal } from "./Reveal";
-import { BlogCard } from "./BlogCard";
+import { WriteupGroups } from "./WriteupGroups";
 
 export async function WriteupsSection() {
-  const posts = getAllWriteups();
+  const groups = getWriteupsByEvent();
 
   return (
     <section id="writeups" className="relative py-24">
@@ -13,9 +13,9 @@ export async function WriteupsSection() {
         <SectionHeading
           eyebrow="writeups"
           title="CTF Writeups"
-          description="CTF writeups and pentesting techniques from my competitions."
+          description="CTF writeups and pentesting techniques, grouped by competition."
         />
-        {posts.length === 0 ? (
+        {groups.length === 0 ? (
           <Reveal>
             <p className="text-center text-sm text-textMuted">
               No published writeups yet. Add `.mdx` files under{" "}
@@ -23,13 +23,7 @@ export async function WriteupsSection() {
             </p>
           </Reveal>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {posts.map((post, i) => (
-              <Reveal key={post.slug} delay={i * 0.06} className="h-full">
-                <BlogCard post={post} />
-              </Reveal>
-            ))}
-          </div>
+          <WriteupGroups groups={groups} />
         )}
       </Container>
     </section>

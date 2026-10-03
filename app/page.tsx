@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/lib/site";
 import { Navbar } from "@/components/Navbar";
+import { ReadingProgress } from "@/components/ReadingProgress";
 import { Hero } from "@/components/Hero";
 import { About } from "@/components/About";
 import { Skills } from "@/components/Skills";
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <>
+      <ReadingProgress />
       <Navbar />
       <main>
         <Hero />

@@ -50,7 +50,7 @@ export function Navbar() {
         aria-label="Main navigation"
       >
         <Link
-          href="#home"
+          href="/#home"
           className="group flex items-center gap-2 font-mono text-sm font-semibold text-textPrimary"
           onClick={() => setOpen(false)}
         >

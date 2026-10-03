@@ -43,7 +43,7 @@ const OUTPUT: Record<string, string[]> = {
   ],
   contact: [
     "The fastest way to reach me is via email or the contact section.",
-    "Set your links in data/socials.ts — placeholders are configured.",
+    "Scroll to #contact for all my links.",
   ],
 };
 

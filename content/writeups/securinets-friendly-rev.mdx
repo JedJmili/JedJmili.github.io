@@ -1,0 +1,196 @@
+---
+title: "Securinets Friendly CTF 2026 — Reverse Tasks"
+excerpt: "Four reverse-engineering challenges from the Securinets Friendly CTF 2026 — reading strings out of a binary, recovering XOR-obfuscated flags in IDA, unpacking UPX, and abusing a cashier's missing sign check to buy an overpriced bottle of water."
+date: "2026-09-28"
+category: "Reverse Engineering"
+event: "Securinets Friendly CTF 2026"
+tags: ["ctf", "reverse", "securinets", "ida", "xor", "upx"]
+readingTime: "12 min"
+cover: "/images/bleach/bankai-patch.jpg"
+draft: false
+---
+
+## Overview
+
+This is the reverse-engineering track of the Securinets Friendly CTF 2026 — four
+challenges that build up from the absolute basics of static analysis to a logic bug in a
+little command-line shop. The tools are the usual starter kit: `strings`, a disassembler
+(**IDA**, Ghidra works just as well), **UPX**, and a few lines of Python to undo XOR
+math. Every flag is `Securinets{...}`.
+
+---
+
+## Challenge 1 — Welcome
+
+> This program just greets you and does nothing else... or does it? Sometimes the answer
+> is written right there — you just need to look at the right **strings**.
+
+**Handout:** a binary called `welcome`.
+
+The bolded word **strings** is the whole hint. `strings` is a classic Unix tool that
+scans any file and prints runs of printable characters. Compiled C programs keep their
+string literals (prompts, messages, and sometimes flags) in plain text inside the `.data`
+/ `.rodata` sections, so before doing any real disassembly it's always worth a quick look.
+
+```bash
+strings welcome
+```
+
+Among the libc symbols and banner text, the flag is sitting right there in the output:
+
+![strings output revealing the flag](/images/writeups/rev/strings.png)
+
+**Flag:** `Securinets{5tr1ng5_4r3_3v3rywh3r3!!!}`
+
+---
+
+## Challenge 2 — XOR Me
+
+> This binary asks for the flag and only tells you if you are right or wrong. The flag is
+> hidden inside, but it's not stored in plain sight this time. Open it in your favourite
+> disassembler (**IDA**, Ghidra...) and figure out how it's checked.
+
+**Handout:** a binary called `IDA`.
+
+**What is IDA?** IDA (Interactive DisAssembler) is the industry-standard reverse
+engineering tool. It disassembles a binary into assembly and, with its decompiler
+(**F5** on a function), reconstructs readable C-like pseudocode. That makes it far
+quicker to understand program logic than reading raw assembly.
+
+Opening the binary and pressing **F5** on `main` gives us the whole check:
+
+![IDA pseudocode of the XOR check](/images/writeups/rev/ida-xor.png)
+
+```c
+__isoc99_scanf("%127s", s1);           // our input
+for ( i = 0; i <= 0x28; ++i )
+    data[i] ^= 0x42u;                  // de-obfuscate the stored flag in place
+if ( !strcmp(s1, data) )
+    puts("Correct!");
+```
+
+The program never compares our input to a plaintext flag. Instead it takes a hidden
+buffer `data`, XORs each of its `0x29` (41) bytes with the constant key `0x42`, and
+compares the *result* against our input. So the flag is simply `data XOR 0x42`.
+
+Double-clicking `data` in the pseudocode jumps to the `.data` section, where we can read
+the raw bytes:
+
+![data bytes in the .data section (part 1)](/images/writeups/rev/xor-data1.png)
+
+![data bytes in the .data section (part 2)](/images/writeups/rev/xor-data2.png)
+
+Collect those 41 bytes and XOR each with `0x42`:
+
+```python
+data = [
+    0x11,0x27,0x21,0x37,0x30,0x2B,0x2C,0x27,0x36,0x31,0x39,0x1A,0x72,0x30,
+    0x71,0x26,0x1D,0x73,0x0C,0x1D,0x0B,0x06,0x03,0x1D,0x2E,0x2B,0x36,0x36,
+    0x2E,0x27,0x1D,0x30,0x27,0x34,0x27,0x30,0x31,0x71,0x30,0x31,0x3F,
+]
+print(bytes(b ^ 0x42 for b in data).decode())
+```
+
+**Flag:** `Securinets{X0r3d_1N_IDA_little_revers3rs}`
+
+---
+
+## Challenge 3 — Revenge
+
+> The flag is not where you think it is. Something is hiding behind the layers... Peel
+> them off one by one before you start reversing.
+
+**Handout:** `revenge_packed` · **Tags:** UPX, XOR, Packing
+
+The tags call out **UPX**. UPX (the Ultimate Packer for eXecutables) is a *packer*: it
+compresses an executable and prepends a small stub that decompresses it back into memory
+at runtime. If you load a packed binary straight into IDA you mostly see the stub and a
+blob of compressed data — the real code isn't there to read yet. That's the "layer" the
+description is talking about.
+
+Luckily this is vanilla UPX, so we can unpack it losslessly with UPX itself:
+
+```bash
+upx -d revenge_packed -o revenge_unpacked
+```
+
+![UPX unpacking the binary](/images/writeups/rev/upx-unpack.png)
+
+Now the unpacked binary decompiles cleanly in IDA:
+
+![IDA pseudocode of the unpacked binary](/images/writeups/rev/revenge-ida.png)
+
+```c
+for ( i = 0; i < 50; ++i )
+    data[i] ^= key[i % 4];             // repeating 4-byte XOR key
+if ( !strcmp(s1, data) )
+    puts("Correct!");
+```
+
+Same idea as *XOR Me*, but instead of a single constant the stored buffer is XORed
+against a **repeating 4-byte key** (`key[i % 4]`). Read both the `data` and `key` byte
+arrays from the disassembly and reproduce the loop in Python — XOR each `data[i]` with
+`key[i % 4]` — to recover the flag.
+
+**Flag:** `Securinets{T4LA3_Y4_R4HM0UN1_3L_UPX_LF0UUU9_T4LA3}`
+
+---
+
+## Challenge 4 — Buvette
+
+> You are thirsty and the last bottle of **Mee Ma9tou3** costs 500 DT. You only have
+> 100 DT in your pocket... Reverse the binary, find the flaw in the cashier's logic and
+> buy the water on the remote buvette.
+
+**Handout:** a binary called `buvette`.
+
+This is a classic **logic bug** rather than memory corruption. Decompiling `main` shows a
+little shop loop: you have a budget (`v6`), you pick a menu item, you're asked for a
+quantity (`v5`), and the cost is subtracted from your budget. Every normal item validates
+the quantity the same way:
+
+![Most purchase cases validate the quantity](/images/writeups/rev/buvette-cases.png)
+
+```c
+if ( v5 <= 0 || v5 > 10 )   // reject zero, negative, or > 10
+    goto reject;
+```
+
+That check rejects negative quantities — so you can't cheat by "buying" a negative amount
+to gain money. **Except** one case is written differently. Case 8 (**Pizza Jambon**)
+only guards the upper bound:
+
+![Case 8 is missing the lower-bound check](/images/writeups/rev/buvette-case8.png)
+
+```c
+if ( v5 > 100 )             // only checks the maximum — no v5 <= 0 !
+    goto reject;
+v7 = 3.5 * (double)v5;
+v6 = v6 - v7;               // budget -= cost
+```
+
+Because the lower-bound check is missing, you can enter a **negative quantity** for Pizza
+Jambon. The cost `3.5 * v5` then becomes negative, and `v6 = v6 - (negative)` *adds*
+money to your budget. Buy a large negative quantity a couple of times and your budget
+balloons past 500 DT:
+
+![Buying a negative quantity inflates the budget](/images/writeups/rev/buvette-exploit.png)
+
+With enough budget, pick option 10 (**Mee Ma9tou3**, 500 DT) and the buvette hands over
+the flag.
+
+**Flag:** `Securinets{J1B0ULNAAA_LM333_W0UUUH_Y4_CH0UUM11_W0UUH}`
+
+---
+
+## Takeaways
+
+- **Always run `strings` first.** It costs nothing and sometimes it's the entire
+  challenge.
+- **The decompiler is your friend.** F5 in IDA (or Ghidra's decompiler) turns an
+  intimidating binary into a dozen lines of C you can actually reason about.
+- **Recognise packers.** Garbled, unreadable pseudocode plus a tiny entry stub usually
+  means the binary is packed — `upx -d` undoes the standard case instantly.
+- **Read every branch of input validation.** The Buvette bug was one missing `v5 <= 0`
+  in a single case. Inconsistent checks across similar code paths are where logic flaws
+  live.

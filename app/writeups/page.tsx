@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Container } from "@/components/Container";
-import { BlogCard } from "@/components/BlogCard";
+import { WriteupGroups } from "@/components/WriteupGroups";
 import { Reveal } from "@/components/Reveal";
-import { getAllWriteups } from "@/lib/writeups";
+import { getWriteupsByEvent } from "@/lib/writeups";
 
 export const metadata: Metadata = {
   title: "Writeups & Research",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default function WriteupsPage() {
-  const posts = getAllWriteups();
+  const groups = getWriteupsByEvent();
 
   return (
     <>
@@ -33,7 +33,7 @@ export default function WriteupsPage() {
             </p>
           </header>
 
-          {posts.length === 0 ? (
+          {groups.length === 0 ? (
             <Reveal>
               <p className="text-sm text-textMuted">
                 No published writeups yet. Add `.mdx` files under{" "}
@@ -41,13 +41,7 @@ export default function WriteupsPage() {
               </p>
             </Reveal>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {posts.map((post, i) => (
-                <Reveal key={post.slug} delay={i * 0.05} className="h-full">
-                  <BlogCard post={post} />
-                </Reveal>
-              ))}
-            </div>
+            <WriteupGroups groups={groups} />
           )}
         </Container>
       </main>

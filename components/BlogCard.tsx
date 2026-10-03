@@ -6,8 +6,21 @@ export function BlogCard({ post }: { post: WriteupMeta }) {
   return (
     <Link
       href={`/writeups/${post.slug}`}
-      className="group flex h-full flex-col rounded-xl border border-border bg-surface/60 p-6 transition-colors hover:border-accent/30"
+      className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-surface/60 transition-colors hover:border-accent/30"
     >
+      {post.cover && (
+        <div className="relative h-36 w-full overflow-hidden border-b border-border bg-background">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={post.cover}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-surface/60 to-transparent" />
+        </div>
+      )}
+      <div className="flex flex-1 flex-col p-6">
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="rounded-md bg-accent/10 px-2 py-1 font-mono text-xs text-accent">
           {post.category}
@@ -39,6 +52,7 @@ export function BlogCard({ post }: { post: WriteupMeta }) {
         Read writeup
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </span>
+      </div>
     </Link>
   );
 }

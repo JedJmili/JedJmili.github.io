@@ -1,0 +1,575 @@
+---
+title: "Securinets Friendly CTF 2026 — Crypto Tasks"
+excerpt: "The full crypto track of the Securinets Friendly CTF 2026 across three anime waves — Naruto, Dragon Ball and Bleach — covering base encodings, classical ciphers, repeating-key XOR, hash cracking, AES, and five flavours of RSA attack."
+date: "2026-09-27"
+category: "Cryptography"
+event: "Securinets Friendly CTF 2026"
+tags: ["ctf", "crypto", "securinets", "rsa", "xor", "aes"]
+readingTime: "18 min"
+cover: "/images/bleach/bankai-patch.jpg"
+draft: false
+---
+
+## Overview
+
+This is a full walkthrough of the cryptography track from an anime-themed Securinets
+CTF. The track is split into three **waves**, each built around a different series:
+
+- **Wave 1 — Naruto:** base encodings, classical ciphers and a first taste of XOR and RSA.
+- **Wave 2 — Dragon Ball:** hash cracking, custom alphabets, AES brute force and multi-ciphertext XOR.
+- **Wave 3 — Bleach:** the hard crypto — two RSA attacks and a five-stage boss chain.
+
+Every flag is in the format `Securinets{...}`. Most challenges can be solved with
+[CyberChef](https://gchq.github.io/CyberChef/) and a short Python script; a few need a
+proper attack. Let's dive in.
+
+---
+
+## Wave 1 — Naruto
+
+### Base64 — "Pain's message"
+
+> Pain attacked the village and killed **64** of the villagers. After the attack he flew
+> to the sky and said something... Retrieve the message and find out what he said.
+
+**Handout**
+
+```text
+U2VjdXJpbmV0c3tUaDE1X1cwcmxkXzVoNGxsX0tuMHdfUDQxbn0=
+```
+
+The "64" in the description and the trailing `=` padding are the giveaway: this is
+**Base64**. Base64 encodes 3 bytes of input into 4 printable ASCII characters, so
+encoded strings are padded to a multiple of 4 with `=`.
+
+Drop it into CyberChef with a single **From Base64** operation:
+
+![From Base64 in CyberChef](/images/writeups/base64.png)
+
+**Flag:** `Securinets{Th15_W0rld_5h4ll_Kn0w_P41n}`
+
+### Bases — "CyberChef the ally"
+
+> One of Naruto's allies was **CyberChef**, a skilled cryptographer who helped decode
+> messages using various techniques.
+
+**Handout**
+
+```text
+NjUgNjMgNjYgNjUgNjYgNjMgNjcgNjUgNjcgNjIgNjYgNzEgNjYgMTQ1IDY2IDY1IDY3IDY0IDY3IDYzIDY3IDE0MiA2NiA2NCA2MyA2NCA2NyA2NCA2NyA2NCA2MyA2MyA2NiA2MiA2MyA2NCA2NyA3MSA2MyA2MCA2NSAxNDYgNjMgNjEgNjUgMTQ2IDY3IDY3IDYzIDYxIDY2IDE0MyA2NiAxNDMgNjUgMTQ2IDY2IDYyIDYzIDYzIDY2IDYzIDYzIDYwIDY2IDE0NCA2MyA2MyA2NSAxNDYgNjcgNjQgNjYgNzAgNjMgNjMgNjUgMTQ2IDY2IDcwIDYzIDYwIDY2IDE0MiA2MyA2NCA2NiA2NyA2MyA2MyA2NyAxNDQ
+```
+
+This is a stack of encodings, one wrapped inside the next. Peel them off in order:
+
+1. **From Base64** → reveals space-separated numbers like `65 63 66 65 ...`.
+2. **From Octal** (delimiter: space) → those numbers are octal, decoding to a hex string.
+3. **From Hex** → the final bytes spell the flag.
+
+The whole chain is a single three-operation CyberChef recipe:
+
+![Three-stage CyberChef recipe: From Base64 → From Octal → From Hex](/images/writeups/bases.png)
+
+**Flag:** `Securinets{d4tt3b4y0_1_w1ll_b3c0m3_th3_h0k4g3}`
+
+### Caesar — "The Hokage's message"
+
+> Naruto found a mysterious message left by the Hokage. Every letter has been shifted...
+
+**Handout**
+
+```text
+Comebsxodc{1_x3f3b_q0_l4mu_0x_wi_g0bn_x1xn0}
+```
+
+The tag says **Caesar cipher** — each letter is rotated by a fixed amount around the
+alphabet. With only 25 possible shifts you can simply try them all (brute force). The
+right shift turns `Comebsxodc` back into `Securinets`, which happens at **ROT-10** (shift
+each letter back by 10). I used [cryptii.com](https://cryptii.com), but any Caesar/ROT
+tool works:
+
+![Caesar brute force on cryptii](/images/writeups/caesar.png)
+
+**Flag:** `Securinets{1_n3v3r_g0_b4ck_0n_my_w0rd_n1nd0}`
+
+### Ciphers — "Sai's drawing"
+
+> Sai was a master of the **Ciphers** technique. Facing Sasuke, he sent a message for
+> Team 7 to decode.
+
+The handout is an image of a strange symbol font — the classic **Bionicle / Matoran
+alphabet** (rings with dots and slashes). Each glyph maps to one letter:
+
+![Bionicle (Matoran) cipher handout](/images/writeups/bionicle-cipher.png)
+
+Decode it with the Bionicle alphabet reference on
+[rumkin.com](https://rumkin.com/tools/cipher/) (or a Matoran chart).
+
+**Flag:** `Securinets{sh4r1ng4n_c4n_c0py_th1s_c1ph3r}`
+
+### RSA — "The locked scroll"
+
+> The Hokage locked a message inside a scroll. Only a few numbers were left behind:
+> `p`, `e`, `n` and `c`.
+
+**Handout**
+
+```text
+p = 1296333326819579802912748486794474979347921853878741592058033
+n = 1958657156530162195397233766171134662374672377258645024116688975398225781870289852312741095725301989265784037356821871141
+e = 65537
+c = 380172567661716048869246684618070756994304686988313156582062525984487844857595183335729515137902498003444244905497269401
+```
+
+**A 60-second RSA refresher.** RSA security rests on the difficulty of factoring a large
+modulus `n = p · q` into its two prime factors. A message `m` is encrypted as
+`c = m^e mod n`. To decrypt you need the private exponent `d`, computed from the primes
+via `d = e^(-1) mod φ(n)`, where `φ(n) = (p-1)·(q-1)`. Without the primes you can't get
+`φ(n)`, so you can't get `d`.
+
+The mistake here is that **`p` is handed to us directly**. Once you know one prime the
+whole scheme collapses: `q = n / p`, then `φ(n)`, then `d`, then `m = c^d mod n`.
+
+```python
+from Crypto.Util.number import long_to_bytes
+
+p = 1296333326819579802912748486794474979347921853878741592058033
+n = 1958657156530162195397233766171134662374672377258645024116688975398225781870289852312741095725301989265784037356821871141
+e = 65537
+c = 380172567661716048869246684618070756994304686988313156582062525984487844857595183335729515137902498003444244905497269401
+
+q = n // p
+phi = (p - 1) * (q - 1)
+d = pow(e, -1, phi)
+m = pow(c, d, n)
+print(long_to_bytes(m).decode())
+```
+
+You can also just paste the values into [dcode.fr](https://www.dcode.fr/rsa-cipher).
+
+**Flag:** `Securinets{RSA_n0_jutsu_1s_th3_str0ng3st}`
+
+### XOR — "Itachi still fighting"
+
+> Naruto used **Rasengan** to defeat Itachi, but Itachi was still alive and fighting.
+> HOW!!! XOR!!!
+
+**Handout**
+
+```text
+ciphertext = 010410101c0e0f0b2612081c5e123e5a20522c510215525a36182c065a00091a0d501d3a031e3e361d332c025d090b1b26120618
+```
+
+**XOR** combines two byte streams bit-by-bit: a bit is `1` only when the two inputs
+differ. It's reversible — `cipher XOR key = plaintext` and `plaintext XOR key = cipher`
+— which makes it a cheap symmetric cipher when a key is repeated across the message.
+
+The description bolds **Rasengan**, and that's the repeating key. XOR the hex ciphertext
+with the ASCII bytes of `Rasengan`:
+
+```python
+ct = bytes.fromhex("010410101c0e0f0b2612081c5e123e5a20522c510215525a36182c065a00091a0d501d3a031e3e361d332c025d090b1b26120618")
+key = b"Rasengan"
+print(bytes(b ^ key[i % len(key)] for i, b in enumerate(ct)).decode())
+```
+
+**Flag:** `Securinets{y0u_4r3_4lr34dy_c4ght_1n_my_XOR_g3njutsu}`
+
+### Vigenère — "Nour can't pronounce it"
+
+> A friend called Nour keeps mispronouncing my nickname. Sasuke offered to help decode
+> the message using **SHARINGAN**.
+
+**Handout**
+
+```text
+Klclzvtegk{U0UI_H4P4V1T0}
+```
+
+The **Vigenère cipher** is a Caesar cipher where the shift changes per letter, driven by
+a repeating keyword: letter `i` is shifted by the alphabet position of key letter
+`i mod len(key)`. The bolded **SHARINGAN** is the key. Decrypt on
+[cryptii.com](https://cryptii.com) (Vigenère → key `SHARINGAN`):
+
+**Flag:** `Securinets{N0UR_Z4C4P1T0}`
+
+---
+
+## Wave 2 — Dragon Ball
+
+### Spirit Bomb — "Break the hash"
+
+> Goku is preparing the Spirit Bomb. A mysterious hash has appeared, containing the
+> secret needed to open a RAR archive.
+
+**Handout:** an MD5 hash `2855c6adc42ad82414a2eea7c128fbac` and a password-protected archive.
+
+**What's a hash?** A cryptographic hash like **MD5** maps any input to a fixed-length
+digest and is designed to be one-way — you can't reverse it mathematically. But MD5 is
+fast and unsalted, so for common passwords you can just look the digest up (or brute
+force it). Feed the hash to [CrackStation](https://crackstation.net) or run hashcat
+against `rockyou.txt`:
+
+```bash
+hashcat -m 0 -a 0 hash.txt rockyou.txt
+```
+
+The cracked password opens the archive, which contains a **Dancing Men** cipher (the
+Sherlock Holmes stick-figure alphabet). Decode that with the Dancing Men tool on
+[rumkin.com](https://rumkin.com/tools/cipher/) to get the flag.
+
+**Flag:** `Securinets{g0ku_n33ds_y0ur_H4sH_sp1r1t_b0mb}`
+
+### Dragon Ball — "Read the manga"
+
+> To recover the flag I think you need to read the **manga**, maybe...
+
+**Handout**
+
+```text
+ㄩ2ᐯﾌᗪ乂ﾌ卩乃爪ᐯ0匚3ㄒﾌ乂1匚0ㄒҜ40乂0|乙Ҩ乙乃几爪180乂乙ᐯᐯㄩᗪ几丂乂1爪0丂ᐯҜ0ㄒ|乇卄|乂0==
+```
+
+Those glyphs are a **"manga / aesthetic" font** that substitutes each Latin character
+with a look-alike CJK or symbol glyph. Reverse it with any manga-font generator to get
+back the real ASCII, which turns out to be Base64 (note the `==` padding):
+
+```text
+U2VjdXJpbmV0c3tJX1c0Tk40X0IzQzBNM180XzVVUDNSX1M0SVk0TiEhIX0=
+```
+
+**From Base64** in CyberChef gives the flag.
+
+**Flag:** `Securinets{I_W4NN4_B3C0M3_4_5UP3R_S4IY4N!!!}`
+
+### Saiyan Saga — "Bruteforce the power level"
+
+> Goku showed his new power, **AES** Kaioken. The Saiyans used their scouters to
+> **bruteforce** his power level.
+
+**Handout**
+
+```json
+{
+  "ciphertext": "dd7d9225d5d724381ab07ea9830ea6792a8a91740c05a053da9f7d40e3769014c7626ecb629de978085ce5e6714604f4",
+  "iv": "8845a59d499ae2cbe0f90b35393656fe",
+  "mode": "AES-CBC",
+  "key_derivation": "MD5(password)",
+  "hint": "The password is 4 digits."
+}
+```
+
+**AES** is the standard symmetric block cipher (128-bit blocks). In **CBC** mode each
+plaintext block is XORed with the previous ciphertext block before encryption, and the
+first block uses the **IV** (initialization vector). To decrypt you need the key — here
+the key is `MD5(password)` and the password is only **4 digits**.
+
+That's just 10,000 possibilities (`0000`–`9999`), so we brute force: derive the key from
+each candidate, decrypt, and stop when the PKCS#7 padding is valid *and* the plaintext
+starts with `Securinets{`.
+
+```python
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
+from hashlib import md5
+import json
+
+data = json.load(open("challenge.json"))
+ciphertext = bytes.fromhex(data["ciphertext"])
+iv = bytes.fromhex(data["iv"])
+
+for pin in range(10000):
+    password = f"{pin:04d}"
+    key = md5(password.encode()).digest()
+    try:
+        pt = unpad(AES.new(key, AES.MODE_CBC, iv).decrypt(ciphertext), AES.block_size)
+        if pt.startswith(b"Securinets{"):
+            print("PIN:", password, "->", pt.decode())
+            break
+    except ValueError:
+        pass  # wrong key -> bad padding
+```
+
+The correct PIN is `9125`.
+
+**Flag:** `Securinets{1ts_0v3r_n1n3_th0us4nd_p0w3r_l3v3l}`
+
+### Kamehameha — "Listen carefully"
+
+> Hidden inside the Kamehameha is a message. Listen carefully.
+
+**Handout:** a `chall.wav` audio file.
+
+The tags point at **Morse code** — short and long tones (dots and dashes) encoding
+letters. Drop the WAV into an audio Morse decoder (e.g.
+[morsecode.world/international/decoder/audio-decoder-adaptive.html](https://morsecode.world/international/decoder/audio-decoder-adaptive.html))
+and read off the message.
+
+**Flag:** `Securinets{KAAAA_MEEEE_HAAAA_MEEEE_HAAAAAAAAA}`
+
+### Majin Buu — "Three ciphertexts"
+
+> Goku received 3 ciphertexts, the keys to unlock the Spirit Bomb. The crowd chants
+> **People of Earth!! Please, give me your energy!!**
+
+**Handout**
+
+```text
+ciphertext1 = 1700011b050141020767200f191d0c404c4117090b0a1a014d4d062e130b4b040141140e32174e0e0701130a186644
+ciphertext2 = 14000b4b100b144d0d26110b1945442c0c0b2e0b4e291c114f
+ciphertext3 = 14000d1e1b0d0f0815341e055f045709590c740d5a340b5755003e23561d1f1b54181e3e330d5d3402571810
+```
+
+The tag is XOR again, but we don't have the key — we have a **known plaintext**. The
+bolded chant `People of Earth!! Please, give me your energy!!` looks like the plaintext
+of the first ciphertext. Since `plaintext XOR ciphertext = key`, XOR the chant against
+`ciphertext1` to recover the repeating key:
+
+![Recovering the key "Genkidama" by XORing the known plaintext against ciphertext1](/images/writeups/xor-majinbuu.png)
+
+The key repeats as **`Genkidama`**. Now XOR all three ciphertexts with it:
+
+```python
+key = b"Genkidama"
+
+cts = [
+    "1700011b050141020767200f191d0c404c4117090b0a1a014d4d062e130b4b040141140e32174e0e0701130a186644",
+    "14000b4b100b144d0d26110b1945442c0c0b2e0b4e291c114f",
+    "14000d1e1b0d0f0815341e055f045709590c740d5a340b5755003e23561d1f1b54181e3e330d5d3402571810",
+]
+
+def repeating_xor(data, key):
+    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+
+for h in cts:
+    print(repeating_xor(bytes.fromhex(h), key))
+```
+
+The first two decrypt to the chant and a Majin Buu taunt; the third carries the flag.
+
+**Flag:** `Securinets{k4m3h4m3h4_b34m_d3str0ys_th3_k3y}`
+
+---
+
+## Wave 3 — Bleach
+
+### Oussema (xD) — "Brainrot cipher"
+
+> My friend Oussema is brainrotted. He left this message and a note to decode it.
+> **Flag format:** `Securinets{firstword**secondword}`
+
+**Handout**
+
+```text
+ciphertext : /-\-/_eye-/_**12@}{(v)<>L|1\1eye
+note       : 3 3 3 3 ** 2 1 2 3 2 2 3 3
+```
+
+The `**` splits the ciphertext into two words. Each "letter" is a little ASCII-art
+drawing of a letter, and the note gives how many symbol-characters make up each glyph:
+
+- **First word** (note `3 3 3 3`): `/-\` = **A**, `-/_` = **Z**, `eye` = **I**, `-/_` = **Z** → **AZIZ**
+- **Second word** (note `2 1 2 3 2 2 3 3`): `12` = **R**, `@` = **a**, `}{` = **H**, `(v)` = **M**, `<>` = **o**, `L|` = **u**, `1\1` = **N**, `eye` = **I** → **RAHMOUNI**
+
+**Flag:** `Securinets{AZIZ**RAHMOUNI}`
+
+### Mayuri Kurotsuchi — "RSA with two exponents"
+
+> Mayuri invented a new RSA... the RSA with two exponents.
+
+**Handout**
+
+```python
+E1 = 3
+E2 = 5
+# same message m, same modulus n, two ciphertexts
+c1 = pow(m, E1, n)
+c2 = pow(m, E2, n)
+```
+
+```text
+n  = 132112526160727686979407289099365104128372365752416703240315065599703224764805495032703540687107063483720048183567088446200420085952359630550943656009993819017836506515053605346235953697468587850753641930162056927578844189652196954690071409321080679249137364067120391337774332434016894649842040802124340271001
+e1 = 3
+c1 = 5652391868115416389597688413412793992708568052884642516484176444145650196245525015062946962011664230899843744570455893665399864600184502781819810517340833257394372503707565517528082083067957012699597753792546429277271099565898790957050795793836386032092674525726632046592134593710900124642007397
+e2 = 5
+c2 = 99251096002253562403593501119497643127110349802229731167445716552415600714194190730009853439818922834061026977819922798480723517120990011565521065279048001519805739886381029993544771196890004485617904652361965516732936730718195921770298603335239139273527471440674095809914314579791323448686676482481556853194
+```
+
+The same `m` is encrypted under the **same modulus** with two **coprime** exponents.
+This is the classic **common-modulus attack** — no factoring needed. Because
+`gcd(e1, e2) = 1`, the extended Euclidean algorithm gives integers `a, b` with
+`a·e1 + b·e2 = 1`. Then:
+
+```text
+c1^a · c2^b ≡ m^(a·e1) · m^(b·e2) ≡ m^(a·e1 + b·e2) ≡ m^1 ≡ m   (mod n)
+```
+
+For `e1 = 3, e2 = 5` we get `a = 2, b = -1`, i.e. `m ≡ c1² · c2^(-1) (mod n)`. The
+negative exponent is fine — Python's `pow(x, -1, n)` computes the modular inverse (it
+exists because `gcd(c2, n) = 1`).
+
+```python
+from Crypto.Util.number import long_to_bytes
+
+def egcd(a, b):
+    if b == 0:
+        return a, 1, 0
+    g, x, y = egcd(b, a % b)
+    return g, y, x - (a // b) * y
+
+g, a, b = egcd(e1, e2)
+assert g == 1, "exponents must be coprime"
+
+m = (pow(c1, a, n) * pow(c2, b, n)) % n   # pow handles the negative exponent
+print(long_to_bytes(m).decode())
+```
+
+**Flag:** `Securinets{m4yur1_14b_p3rm1ss10n_gr4nt3d}`
+
+### RSAnt — "Aizen's small exponent"
+
+> Before leaving for Hueco Mundo, Aizen encrypted his orders. Decrypt them and uncover
+> his plan.
+
+**Handout**
+
+```text
+n = 81757999847368525471111727014904006481944133938745575640971724573397660850469237980986826167900620614544988356263598441534648012118803300403885395434322599714621798523633952639675633604923137027956344845174297397888866907488174767360978594438461203772318743458529232911787803838916652546266816218175866276403
+e = 3
+c = 336908809430326008176665805346198032429874209289238913604174004578965373875890468820577381419314642670127003986513364637689811526572112090444950705432232883323778126760800085647236304735992326808170221810547150016682599477815615889952474447943205780952710591326346998575322208203905918821
+```
+
+Here `e = 3` and the message is short, so `m^3` is **smaller than `n`** — the modular
+reduction never happens and `c = m^3` over the integers. This is the **small-exponent
+(cube-root) attack**: just take the integer cube root of `c`. We use an integer binary
+search so there's no floating-point rounding error on a number this large.
+
+```python
+from Crypto.Util.number import long_to_bytes
+
+def iroot(x, k):           # exact integer k-th root via binary search
+    lo, hi = 0, 1 << ((x.bit_length() // k) + 1)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if mid ** k <= x:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+m = iroot(c, 3)
+assert m ** 3 == c, "not a perfect cube — m^3 wrapped around n after all"
+print(long_to_bytes(m).decode())
+```
+
+**Flag:** `Securinets{4ll_4cc0rd1ng_t0_41z3ns_pl4n}`
+
+### Getsuga Tenshō — "Guess it character by character"
+
+> *Don't even think of guessing the flag — it's 33 characters long!*
+
+**Handout**
+
+```python
+flag = "................................."   # 33 chars, hidden on the server
+user_input = input()
+index = 0
+for char in user_input:
+    if char != flag[index]:
+        print("Wrong flag!")
+        exit()
+    index += 1
+print("Correct flag!")
+print("flag is : Securinets{" + user_input + "}")
+```
+
+The check is a **character-by-character comparison** that bails on the first wrong
+character. That leaks the flag one position at a time: if the current guess is correct so
+far it accepts another character; otherwise it prints `Wrong flag!`. So we brute force
+each position independently — at most `charset × 33` connections instead of
+`charset^33`.
+
+```python
+from pwn import remote
+
+HOST, PORT = "127.0.0.1", 31337
+charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_{}"
+flag = ""
+
+for i in range(33):
+    for c in charset:
+        io = remote(HOST, PORT)
+        io.sendline((flag + c).encode())
+        resp = io.recvall(timeout=2).decode(errors="ignore")
+        io.close()
+        if "Correct flag!" in resp:
+            flag += c
+            print(f"[+] {i + 1}/33: {flag}")
+            break
+
+print("Securinets{" + flag + "}")
+```
+
+### Bankai — "Five barriers"
+
+> Five barriers stand between Ichigo and the Central 46 archive. Bankai won't help you.
+> Your brain might.
+
+This is the boss: a single service that walks you through **five stacked layers**, each
+one producing the key for the next.
+
+**Stage 1 — SENKAIMON (Caesar).** `EVYRLF=GHUWHRBAV`. A Caesar cipher; shifting back by
+7 gives `XORKEY=ZANPAKUTO`.
+
+**Stage 2 — ZANPAKUTO (XOR).** `0c08091b0412680707130f071700061c`. XOR the hex against the
+key `ZANPAKUTO` from stage 1:
+
+```python
+ct = bytes.fromhex("0c08091b0412680707130f071700061c")
+key = b"ZANPAKUTO"
+print(bytes(b ^ key[i % len(key)] for i, b in enumerate(ct)))   # VIGKEY=SHINIGAMI
+```
+
+**Stage 3 — SHIKAI (Vigenère).** `SLAXME=ZMVYLBFCQEK12345`. A Vigenère cipher with key
+`SHINIGAMI` (from stage 2) decrypts to `AESKEY=ZANGETSUKEY12345`.
+
+**Stage 4 — BANKAI (AES-CBC bit-flipping).** The session cookie is AES-CBC encrypted and
+contains `role=shinigami`; we need `role=quincy`. You **don't need the key** — CBC
+decryption XORs each plaintext block with the previous ciphertext block, so flipping a
+byte in the previous block (or in the IV, for the first block) flips the same position in
+the decrypted plaintext. The relationship is:
+
+```text
+new_prev_byte = old_prev_byte XOR old_plaintext_byte XOR desired_plaintext_byte
+```
+
+Locate the 16-byte block holding the role, apply that XOR to each differing byte of the
+preceding block, leave everything else untouched, and send the tampered IV + ciphertext
+to the oracle. It now decrypts as `role=quincy`.
+
+**Stage 5 — HOGYOKU (RSA, e = 3).** The final layer is the same small-exponent RSA as
+*RSAnt*: `c = m^3` with `m^3 < n`, so take the integer cube root of `c` to recover the
+plaintext.
+
+Clear all five and the archive opens.
+
+**Flag:** `Securinets{b4nk4i_br0k3_th3_h0gy0ku}`
+
+---
+
+## Takeaways
+
+A few patterns run through the whole track and are worth internalizing:
+
+- **Read the flavour text.** Bolded words (`Rasengan`, `SHARINGAN`, `Genkidama`, the
+  Earth chant) were literally the keys. The challenge titles named the technique.
+- **XOR is everywhere** and it's symmetric: known plaintext XOR ciphertext hands you the
+  key for free.
+- **RSA fails at its edges**, not its core — a leaked prime, a shared modulus with
+  coprime exponents, or an exponent so small the message never wraps the modulus. None of
+  these require factoring.
+- **Brute force is fine when the space is tiny** — 10,000 PINs, 25 Caesar shifts, or a
+  flag that leaks one character at a time.
+
+Thanks to Securinets for a fun, well-themed set. Bankai complete. 🗡️
+
+![Bankai](/images/bleach/bankai-bubble.jpg)
